@@ -1,0 +1,13 @@
+{
+    "author": "Eduardo Cateura, Pablo Vezzini",
+    "dependencies": { },
+    "description": "Generates 3D mesh using AI",
+    "displayName": "Atlas Generator",
+    "keywords": [ "unity" ],
+    "license": "MIT",
+    "name": "xyz.atlas.atlas-generator-unity-plugin",
+    "repository": "github:Atlas-Design/AtlasGenerator",
+    "unity": "2022.3",
+    "unityRelease": "21f1",
+    "version": "0.1.0"
+  }
