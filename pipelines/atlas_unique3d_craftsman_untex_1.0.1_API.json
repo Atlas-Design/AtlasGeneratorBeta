@@ -1,0 +1,880 @@
+{
+  "6": {
+    "inputs": {
+      "text": "sketch, sculpture, hand drawing, outline, single color, NSFW, lowres, bad anatomy,bad hands, text, error, missing fingers, yellow sleeves, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry,(worst quality:1.4),(low quality:1.4)",
+      "clip": [
+        "238",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode [Var] [Prompt_Negative] [Order: 1]"
+    }
+  },
+  "118": {
+    "inputs": {
+      "text": "4views, multiview",
+      "clip": [
+        "238",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode [Var] [Prompt_Positive] [Order: 0]"
+    }
+  },
+  "192": {
+    "inputs": {
+      "control_net_name": "controlnet_tile_unique3d.safetensors"
+    },
+    "class_type": "ControlNetLoader",
+    "_meta": {
+      "title": "Load ControlNet Model"
+    }
+  },
+  "193": {
+    "inputs": {
+      "strength": 1,
+      "start_percent": 0,
+      "end_percent": 1,
+      "positive": [
+        "118",
+        0
+      ],
+      "negative": [
+        "6",
+        0
+      ],
+      "control_net": [
+        "192",
+        0
+      ],
+      "image": [
+        "247",
+        0
+      ]
+    },
+    "class_type": "ControlNetApplyAdvanced",
+    "_meta": {
+      "title": "Apply ControlNet"
+    }
+  },
+  "194": {
+    "inputs": {
+      "model_name": "RealESRGAN_x4plus.pth"
+    },
+    "class_type": "UpscaleModelLoader",
+    "_meta": {
+      "title": "Load Upscale Model [Var]"
+    }
+  },
+  "238": {
+    "inputs": {
+      "ckpt_name": "DreamShaper_8_pruned.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
+  },
+  "241": {
+    "inputs": {
+      "weight": 1,
+      "weight_type": "linear",
+      "combine_embeds": "concat",
+      "start_at": 0,
+      "end_at": 1,
+      "embeds_scaling": "V only",
+      "model": [
+        "238",
+        0
+      ],
+      "ipadapter": [
+        "242",
+        0
+      ],
+      "image": [
+        "244",
+        0
+      ],
+      "clip_vision": [
+        "243",
+        0
+      ]
+    },
+    "class_type": "IPAdapterAdvanced",
+    "_meta": {
+      "title": "IPAdapter Advanced"
+    }
+  },
+  "242": {
+    "inputs": {
+      "ipadapter_file": "ip-adapter_sd15.safetensors"
+    },
+    "class_type": "IPAdapterModelLoader",
+    "_meta": {
+      "title": "IPAdapter Model Loader"
+    }
+  },
+  "243": {
+    "inputs": {
+      "clip_name": "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
+    },
+    "class_type": "CLIPVisionLoader",
+    "_meta": {
+      "title": "Load CLIP Vision"
+    }
+  },
+  "244": {
+    "inputs": {
+      "interpolation": "LANCZOS",
+      "crop_position": "top",
+      "sharpening": 0.15,
+      "image": [
+        "245",
+        0
+      ]
+    },
+    "class_type": "PrepImageForClipVision",
+    "_meta": {
+      "title": "Prep Image For ClipVision"
+    }
+  },
+  "245": {
+    "inputs": {
+      "upscale_method": "lanczos",
+      "width": [
+        "248",
+        0
+      ],
+      "height": [
+        "248",
+        0
+      ],
+      "crop": "disabled",
+      "image": [
+        "393",
+        0
+      ]
+    },
+    "class_type": "ImageScale",
+    "_meta": {
+      "title": "Upscale Image"
+    }
+  },
+  "247": {
+    "inputs": {
+      "upscale_method": "lanczos",
+      "width": [
+        "248",
+        0
+      ],
+      "height": [
+        "248",
+        0
+      ],
+      "crop": "disabled",
+      "image": [
+        "262",
+        0
+      ]
+    },
+    "class_type": "ImageScale",
+    "_meta": {
+      "title": "Upscale Image"
+    }
+  },
+  "248": {
+    "inputs": {
+      "value": 1536
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "Intermediate Image Resolution"
+    }
+  },
+  "254": {
+    "inputs": {
+      "samples": [
+        "260",
+        0
+      ],
+      "vae": [
+        "238",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "257": {
+    "inputs": {
+      "upscale_model": [
+        "194",
+        0
+      ],
+      "image": [
+        "334",
+        0
+      ]
+    },
+    "class_type": "ImageUpscaleWithModel",
+    "_meta": {
+      "title": "Upscale Image (using Model)"
+    }
+  },
+  "260": {
+    "inputs": {
+      "seed": [
+        "496",
+        0
+      ],
+      "steps": 50,
+      "cfg": 5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "simple",
+      "denoise": 0.75,
+      "model": [
+        "241",
+        0
+      ],
+      "positive": [
+        "193",
+        0
+      ],
+      "negative": [
+        "193",
+        1
+      ],
+      "latent_image": [
+        "264",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "262": {
+    "inputs": {
+      "grid_side_num": 2,
+      "use_rows": true,
+      "images": [
+        "510",
+        0
+      ]
+    },
+    "class_type": "[Comfy3D] Make Image Grid",
+    "_meta": {
+      "title": "Make Image Grid"
+    }
+  },
+  "263": {
+    "inputs": {
+      "grid_side_num": 2,
+      "use_rows": true,
+      "image": [
+        "254",
+        0
+      ]
+    },
+    "class_type": "[Comfy3D] Split Image Grid",
+    "_meta": {
+      "title": "Split Image Grid"
+    }
+  },
+  "264": {
+    "inputs": {
+      "pixels": [
+        "247",
+        0
+      ],
+      "vae": [
+        "238",
+        2
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "302": {
+    "inputs": {
+      "diffusers_pipeline_name": "Unique3DImage2MVCustomPipeline",
+      "repo_id": "MrForExample/Unique3D",
+      "custom_pipeline": "",
+      "force_download": false,
+      "checkpoint_sub_dir": "image2mvimage"
+    },
+    "class_type": "[Comfy3D] Load Diffusers Pipeline",
+    "_meta": {
+      "title": "Load Diffusers Pipeline"
+    }
+  },
+  "303": {
+    "inputs": {
+      "diffusers_scheduler_name": "EulerAncestralDiscreteScheduler",
+      "pipe": [
+        "305",
+        0
+      ]
+    },
+    "class_type": "[Comfy3D] Set Diffusers Pipeline Scheduler",
+    "_meta": {
+      "title": "Set Diffusers Pipeline Scheduler"
+    }
+  },
+  "305": {
+    "inputs": {
+      "config_name": "image2mvimage",
+      "pipe": [
+        "302",
+        0
+      ]
+    },
+    "class_type": "[Comfy3D] Load Unique3D Custom UNet",
+    "_meta": {
+      "title": "Load Unique3D Custom UNet"
+    }
+  },
+  "310": {
+    "inputs": {
+      "R": 255,
+      "G": 255,
+      "B": 255,
+      "images": [
+        "505",
+        0
+      ],
+      "masks": [
+        "356",
+        1
+      ]
+    },
+    "class_type": "[Comfy3D] Image Add Pure Color Background",
+    "_meta": {
+      "title": "Image Add Pure Color Background"
+    }
+  },
+  "334": {
+    "inputs": {
+      "indexes": "0, 1, 2, 3",
+      "images": [
+        "263",
+        0
+      ]
+    },
+    "class_type": "GetImagesFromBatchIndexed",
+    "_meta": {
+      "title": "GetImagesFromBatchIndexed"
+    }
+  },
+  "339": {
+    "inputs": {
+      "images": [
+        "390",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "355": {
+    "inputs": {
+      "image": "entry.png",
+      "upload": "image"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image with not yet extracted background"
+    }
+  },
+  "356": {
+    "inputs": {
+      "image": [
+        "505",
+        0
+      ]
+    },
+    "class_type": "RemoveBackgroundNode",
+    "_meta": {
+      "title": "Remove Background"
+    }
+  },
+  "361": {
+    "inputs": {
+      "upscale_method": "nearest-exact",
+      "scale_by": 1,
+      "image": [
+        "441",
+        0
+      ]
+    },
+    "class_type": "ImageScaleBy",
+    "_meta": {
+      "title": "Upscale Image By"
+    }
+  },
+  "365": {
+    "inputs": {
+      "indexes": "0\n",
+      "images": [
+        "257",
+        0
+      ]
+    },
+    "class_type": "GetImagesFromBatchIndexed",
+    "_meta": {
+      "title": "GetImagesFromBatchIndexed"
+    }
+  },
+  "370": {
+    "inputs": {
+      "scale_guess": 0.5,
+      "x_offset_guess": 0,
+      "y_offset_guess": 0,
+      "source": [
+        "310",
+        0
+      ],
+      "target": [
+        "365",
+        0
+      ]
+    },
+    "class_type": "Image Aligner",
+    "_meta": {
+      "title": "Image Aligner"
+    }
+  },
+  "376": {
+    "inputs": {
+      "images": [
+        "310",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "388": {
+    "inputs": {
+      "images": [
+        "365",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "389": {
+    "inputs": {
+      "indexes": "1, 2, 3",
+      "images": [
+        "257",
+        0
+      ]
+    },
+    "class_type": "GetImagesFromBatchIndexed",
+    "_meta": {
+      "title": "GetImagesFromBatchIndexed"
+    }
+  },
+  "390": {
+    "inputs": {
+      "merge_strategy": "match A",
+      "scale_method": "nearest-exact",
+      "crop": "disabled",
+      "images_A": [
+        "370",
+        0
+      ],
+      "images_B": [
+        "389",
+        0
+      ]
+    },
+    "class_type": "VHS_MergeImages",
+    "_meta": {
+      "title": "Merge Images 🎥🅥🅗🅢"
+    }
+  },
+  "393": {
+    "inputs": {
+      "scale_guess": 1,
+      "x_offset_guess": 0,
+      "y_offset_guess": 0,
+      "source": [
+        "310",
+        0
+      ],
+      "target": [
+        "396",
+        0
+      ]
+    },
+    "class_type": "Image Aligner",
+    "_meta": {
+      "title": "Image Aligner"
+    }
+  },
+  "394": {
+    "inputs": {
+      "indexes": "0\n",
+      "images": [
+        "510",
+        0
+      ]
+    },
+    "class_type": "GetImagesFromBatchIndexed",
+    "_meta": {
+      "title": "GetImagesFromBatchIndexed"
+    }
+  },
+  "396": {
+    "inputs": {
+      "upscale_method": "nearest-exact",
+      "width": [
+        "248",
+        0
+      ],
+      "height": [
+        "248",
+        0
+      ],
+      "crop": "disabled",
+      "image": [
+        "394",
+        0
+      ]
+    },
+    "class_type": "ImageScale",
+    "_meta": {
+      "title": "Upscale Image"
+    }
+  },
+  "397": {
+    "inputs": {
+      "images": [
+        "393",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "434": {
+    "inputs": {
+      "images": [
+        "510",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "435": {
+    "inputs": {
+      "images": [
+        "257",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "437": {
+    "inputs": {
+      "mask": [
+        "356",
+        1
+      ]
+    },
+    "class_type": "MaskPreview+",
+    "_meta": {
+      "title": "🔧 Mask Preview"
+    }
+  },
+  "438": {
+    "inputs": {
+      "R": 255,
+      "G": 255,
+      "B": 255,
+      "images": [
+        "502",
+        0
+      ],
+      "masks": [
+        "439",
+        0
+      ]
+    },
+    "class_type": "[Comfy3D] Image Add Pure Color Background",
+    "_meta": {
+      "title": "Image Add Pure Color Background"
+    }
+  },
+  "439": {
+    "inputs": {
+      "mask": [
+        "503",
+        0
+      ]
+    },
+    "class_type": "InvertMask",
+    "_meta": {
+      "title": "InvertMask"
+    }
+  },
+  "440": {
+    "inputs": {
+      "upscale_model": [
+        "442",
+        0
+      ],
+      "image": [
+        "438",
+        0
+      ]
+    },
+    "class_type": "ImageUpscaleWithModel",
+    "_meta": {
+      "title": "Upscale Image (using Model)"
+    }
+  },
+  "441": {
+    "inputs": {
+      "width": 4096,
+      "height": 4096,
+      "interpolation": "nearest-exact",
+      "method": "keep proportion",
+      "condition": "always",
+      "multiple_of": 0,
+      "image": [
+        "440",
+        0
+      ]
+    },
+    "class_type": "ImageResize+",
+    "_meta": {
+      "title": "🔧 Image Resize"
+    }
+  },
+  "442": {
+    "inputs": {
+      "model_name": "RealESRGAN_x4plus.pth"
+    },
+    "class_type": "UpscaleModelLoader",
+    "_meta": {
+      "title": "Load Upscale Model [Var]"
+    }
+  },
+  "481": {
+    "inputs": {
+      "images": [
+        "505",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "482": {
+    "inputs": {
+      "filename_prefix": "Unique3d_atlas/processed_input_img",
+      "images": [
+        "370",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "496": {
+    "inputs": {
+      "value": 124
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "Random Seed"
+    }
+  },
+  "502": {
+    "inputs": {
+      "image": [
+        "355",
+        0
+      ]
+    },
+    "class_type": "ImageRemoveAlpha+",
+    "_meta": {
+      "title": "🔧 Image Remove Alpha"
+    }
+  },
+  "503": {
+    "inputs": {
+      "width": [
+        "504",
+        0
+      ],
+      "height": [
+        "504",
+        1
+      ],
+      "keep_proportions": false,
+      "mask": [
+        "355",
+        1
+      ]
+    },
+    "class_type": "ResizeMask",
+    "_meta": {
+      "title": "ResizeMask"
+    }
+  },
+  "504": {
+    "inputs": {
+      "image": [
+        "355",
+        0
+      ]
+    },
+    "class_type": "GetImageSize+",
+    "_meta": {
+      "title": "🔧 Get Image Size"
+    }
+  },
+  "505": {
+    "inputs": {
+      "width": 8192,
+      "height": 8192,
+      "interpolation": "nearest-exact",
+      "method": "keep proportion",
+      "condition": "always",
+      "multiple_of": 0,
+      "image": [
+        "361",
+        0
+      ]
+    },
+    "class_type": "ImageResize+",
+    "_meta": {
+      "title": "🔧 Image Resize"
+    }
+  },
+  "507": {
+    "inputs": {
+      "value": 0.1
+    },
+    "class_type": "FloatConstant",
+    "_meta": {
+      "title": "Subdivide Threshold"
+    }
+  },
+  "510": {
+    "inputs": {
+      "seed": [
+        "496",
+        0
+      ],
+      "guidance_scale": 1.5,
+      "num_inference_steps": 40,
+      "image_resolution": 256,
+      "radius": 4,
+      "denoise": true,
+      "preprocess_images": true,
+      "unique3d_pipe": [
+        "303",
+        0
+      ],
+      "reference_image": [
+        "310",
+        0
+      ]
+    },
+    "class_type": "[Comfy3D] Unique3D MVDiffusion Model",
+    "_meta": {
+      "title": "Unique3D MVDiffusion Model"
+    }
+  },
+  "512": {
+    "inputs": {
+      "seed": [
+        "496",
+        0
+      ],
+      "guidance_scale": 5,
+      "num_inference_steps": 50,
+      "marching_cude_grids_resolution": 256,
+      "craftsman_model": [
+        "513",
+        0
+      ],
+      "multiview_images": [
+        "390",
+        0
+      ]
+    },
+    "class_type": "[Comfy3D] Craftsman Shape Diffusion Model",
+    "_meta": {
+      "title": "Craftsman Shape Diffusion Model"
+    }
+  },
+  "513": {
+    "inputs": {
+      "model_name": "image-to-shape-diffusion/clip-mvrgb-modln-l256-e64-ne8-nd16-nl6-aligned-vae/model.ckpt"
+    },
+    "class_type": "[Comfy3D] Load Craftsman Shape Diffusion Model",
+    "_meta": {
+      "title": "Load Craftsman Shape Diffusion Model"
+    }
+  },
+  "514": {
+    "inputs": {
+      "save_path": "Unique3d_atlas/final.obj",
+      "mesh": [
+        "512",
+        0
+      ]
+    },
+    "class_type": "[Comfy3D] Save 3D Mesh",
+    "_meta": {
+      "title": "Save 3D Mesh"
+    }
+  },
+  "515": {
+    "inputs": {
+      "mesh_file_path": [
+        "514",
+        0
+      ],
+      "preview3d": null
+    },
+    "class_type": "[Comfy3D] Preview 3DMesh",
+    "_meta": {
+      "title": "Preview 3DMesh"
+    }
+  }
+}

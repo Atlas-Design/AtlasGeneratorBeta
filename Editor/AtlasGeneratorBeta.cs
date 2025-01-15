@@ -16,17 +16,256 @@ using Image = System.Drawing.Image;
 using System.Reflection;
 using System.Linq;
 
-[InitializeOnLoad]
-public class DragAndDropTextureToScene
+public class GameObjectUtility: MonoBehaviour
 {
-    static DragAndDropTextureToScene()
+    // Método estático para obtener todos los GameObjects activos en la escena
+    public static GameObject[] GetAllGameObjects()
     {
-        // Hook into the scene GUI to listen for drag-and-drop events
-        SceneView.duringSceneGui += OnSceneGUI;
+        return FindObjectsOfType<GameObject>();
+    }
+}
 
+public static class Utility
+{
+    public static void OverwriteFirstPixelWithRandomColor(string path)
+    {
+        byte[] imageData = File.ReadAllBytes(path);
+        Texture2D texture = new Texture2D(2, 2);
+        texture.LoadImage(imageData);
+
+        Color randomColor = new Color(UnityEngine.Random.value, UnityEngine.Random.value, UnityEngine.Random.value, 1f); // RGB aleatorio, alfa en 1
+
+        texture.SetPixel(0, 0, randomColor);
+        texture.Apply();
+
+        byte[] modifiedData = texture.EncodeToPNG();
+        File.WriteAllBytes(path, modifiedData);
     }
 
-     static bool RaycastWithFallbackToXZPlane(Ray ray, out Vector3 hitPoint)
+    public static string FindImagePathWithExtension(string img_path)
+    {
+        // Common image formats
+        string[] extensions = { ".png", ".jpg", ".jpeg", ".bmp", ".tga", ".tiff" };
+
+        // Try every extension
+        foreach (string ext in extensions)
+        {
+            string fullPath = img_path + ext;
+            if (File.Exists(fullPath))
+            {
+                return ext;
+            }
+        }
+
+        return ".png";
+    }
+
+    public static void DeleteAsset(string path)
+    {
+        Uri fullPathUri = new Uri(path);
+        Uri projectUri = new Uri(Application.dataPath); // Unity project "Assets" folder as base
+
+        // Get the relative path by making the full path relative to the "Assets" folder
+        string relativePath = projectUri.MakeRelativeUri(fullPathUri).ToString();
+        string assetPath = relativePath.Replace("\\", "/");
+
+        // Check if the asset exists before attempting to delete
+        if (AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath) != null)
+        {
+            AssetDatabase.DeleteAsset(assetPath);
+            AssetDatabase.Refresh(); // Refresh the asset database to reflect the changes
+        }
+        else
+        {
+            //\UnityEngine.Debug.LogWarning("Asset not found at path: " + assetPath);
+        }
+    }
+
+    private static readonly object fileLock = new object();
+
+    public static void MoveGeneratedFBX(string sourcePath, string destinationPath)
+    {
+        lock (fileLock)
+        {
+            if (File.Exists(destinationPath))
+            {
+                File.Delete(destinationPath);
+            }
+            File.Move(sourcePath, destinationPath);
+        }
+    }
+
+    public static void CopyImage(string originalPath, string copyPath)
+    {
+        using (Image originalImage = Image.FromFile(originalPath))
+        {
+            // Creaye a copy in memory of the image
+            using (Bitmap copy = new Bitmap(originalImage))
+            {
+                // Saves the copy on the specified path
+                copy.Save(copyPath, originalImage.RawFormat);
+            }
+        }
+    }
+
+    public static void DeleteImage(string path)
+    {
+        try
+        {
+            // Verifies that the file exists before deleting
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+                Console.WriteLine("The image has been deleted correctly.");
+            }
+            else
+            {
+                Console.WriteLine("The file does not exist on the specified path.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error while deleting the image: {ex.Message}");
+        }
+    }
+
+    public static int FindMaxQueuePosition()
+    {
+        int maxQueuePosition = 0;
+
+        GameObject[] gameObjects = GameObjectUtility.GetAllGameObjects();
+
+        foreach (GameObject obj in gameObjects)
+        {
+             foreach (var component in obj.GetComponents<Component>())
+            {                
+                var queuePositionField = 0;
+                bool exist = false;
+                if (component.GetType() == typeof(BillboardIcon))
+                {
+                    // Luego, intentamos obtener `queue_position` como campo
+                    // queuePositionField = component.GetType().GetField("queue_position");
+                    queuePositionField = (int)((BillboardIcon)component).GetType().GetField("queue_position").GetValue(component);  
+                    exist = true;                
+                }
+                else if (component.GetType() == typeof(PropertyComponent))
+                {
+                    // Luego, intentamos obtener `queue_position` como campo
+                    queuePositionField = (int)((PropertyComponent)component).GetType().GetField("queue_position").GetValue(component);
+                    exist = true;
+                }
+                
+                // if (queuePositionField != null && queuePositionField.FieldType == typeof(int))
+                if (exist)
+                {
+                    // int queuePositionValue = (int)queuePositionField.GetValue(component);
+                    // maxQueuePosition = Mathf.Max(maxQueuePosition, queuePositionValue);
+                    maxQueuePosition = Mathf.Max(maxQueuePosition, queuePositionField);
+                }
+                
+            }
+        }
+
+        return maxQueuePosition;
+    }
+
+    public static void DecreaseQueuePosition()
+    {
+        GameObject[] gameObjects = GameObjectUtility.GetAllGameObjects();
+        foreach (GameObject obj in gameObjects)
+        {
+            foreach (var component in obj.GetComponents<Component>())
+            {
+                // Try to get `queue_position` as a field
+                var queuePositionField = component.GetType().GetField("queue_position", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                if (queuePositionField != null && queuePositionField.FieldType == typeof(int))
+                {
+                    int queuePositionValue = (int)queuePositionField.GetValue(component);
+                    if (queuePositionValue > 0)
+                    {
+                        // Decrease the value of `queue_position` by 1
+                        queuePositionField.SetValue(component, queuePositionValue - 1);
+                    }
+                }
+            }
+        }
+    }
+
+    public static async Task WaitUntilQueuePositionIsOne(GameObject obj)
+    {
+        foreach (var component in obj.GetComponents<Component>())
+            {
+                // Try to get `queue_position` as a field
+                var queuePositionField = component.GetType().GetField("queue_position", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                if (queuePositionField != null && queuePositionField.FieldType == typeof(int))
+                {
+                    while ((int)queuePositionField.GetValue(component) > 1)
+                    {
+                        // Decrease the value of `queue_position` by 1
+                        await Task.Yield();
+                    }
+                }
+            }
+    }
+
+    public static bool IsFBXFileValid(string filePath)
+    {
+        // Check if file exists
+        if (!File.Exists(filePath))
+        {
+            UnityEngine.Debug.LogWarning($"FBX file not found: {filePath}");
+            return false;
+        }
+
+        // Check file size (FBX files should be at least several KB)
+        FileInfo fileInfo = new FileInfo(filePath);
+        if (fileInfo.Length < 1024) // Check if the file size is smaller than 1KB
+        {
+            UnityEngine.Debug.LogWarning($"FBX file is too small and may be corrupted: {filePath}");
+            return false;
+        }
+
+        // (Optional) Read the file's content to check for an FBX signature
+        using (var reader = new StreamReader(filePath))
+        {
+            string firstLine = reader.ReadLine();
+            if (firstLine == null || !firstLine.Contains("FBX"))
+            {
+                UnityEngine.Debug.LogWarning($"FBX file header is invalid: {filePath}");
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public static bool IsOBJFileValid(string filePath)
+    {
+        // Check if file exists
+        if (!File.Exists(filePath))
+        {
+            UnityEngine.Debug.LogWarning($"OBJ file not found: {filePath}");
+            return false;
+        }
+
+        // Check file size (OBJ files should be at least several KB)
+        FileInfo fileInfo = new FileInfo(filePath);
+        if (fileInfo.Length < 1024) // Check if the file size is smaller than 1KB
+        {
+            UnityEngine.Debug.LogWarning($"OBJ file is too small and may be corrupted: {filePath}");
+            return false;
+        }
+
+        return true;
+    }
+
+    public static string GetUniqueFileName(string baseName, string extension)
+    {
+        string sanitizedBaseName = baseName.Replace(" ", "");
+        return $"{sanitizedBaseName}{extension}";
+    }
+
+    public static bool RaycastWithFallbackToXZPlane(Ray ray, out Vector3 hitPoint)
     {
         RaycastHit hit;
         // Try to raycast against objects in the scene
@@ -49,13 +288,7 @@ public class DragAndDropTextureToScene
         return false; // No object was hit, but we return the XZ plane point
     }
 
-    // Handle scene drag-and-drop logic
-    private static void OnSceneGUI(SceneView sceneView)
-    {
-        HandleDragAndDropEvents();
-    }
-
-    private static void HandleDragAndDropEvents()
+    public static void HandleDragAndDropEvents()
     {
         Event e = Event.current;
 
@@ -117,6 +350,124 @@ public class DragAndDropTextureToScene
 
     }
 
+    public static async Task ExecuteClient3DAsync(string programPath, string texturePath, string request, string sourcePath)
+    {
+        // Obtener la ruta del archivo JSON activo
+        string jsonFilePath = PipelineSelectorWindow.GetActivePipelineFilePath();
+        
+        jsonFilePath = Path.Combine(Application.dataPath.Replace("Assets",""),jsonFilePath).Replace("/","\\");
+        UnityEngine.Debug.Log(jsonFilePath);
+        // UnityEngine.Debug.Log("D:\\WORK\\Sandsoft_plugin\\Assets\\AtlasGeneratorBeta\\pipelines\\Unique3d_atlas_3.3_thick_API.json");
+        // Crear el proceso
+
+        // jsonFilePath = "D:\\WORK\\Sandsoft_plugin\\Assets\\AtlasGeneratorBeta\\pipelines\\Unique3d_atlas_3.3_thick_API.json";
+        ProcessStartInfo startInfo = new ProcessStartInfo
+        {
+            FileName = programPath, // Ruta del programa (client3D.exe)
+            Arguments = $"\"{texturePath}\" \"{jsonFilePath}\" \"{request}\" \"{sourcePath}\"", // Argumentos para el programa
+            RedirectStandardOutput = true, // Redirige la salida estándar si es necesario
+            RedirectStandardError = true,  // Redirige los errores
+            UseShellExecute = false,       // Necesario para redirigir la salida
+            CreateNoWindow = true          // Evita que se muestre una ventana de consola
+        };
+
+        using (Process process = new Process { StartInfo = startInfo })
+        {
+            process.Start(); // Inicia el proceso
+
+            // Leer la salida y errores de manera asíncrona
+            Task<string> outputTask = process.StandardOutput.ReadToEndAsync();
+            Task<string> errorTask = process.StandardError.ReadToEndAsync();
+
+            // Espera de manera asincrónica sin bloquear el hilo principal de Unity
+            await Task.Run(() => process.WaitForExit());
+
+            string output = await outputTask;
+            string error = await errorTask;
+
+            if (!string.IsNullOrEmpty(error))
+            {
+                UnityEngine.Debug.LogError($"Error executing client3D.exe: {error}");
+            }
+            else
+            {
+                UnityEngine.Debug.Log($"client3D.exe executed successfully. Output: {output}");
+            }
+
+            Utility.DeleteImage(texturePath);
+            Utility.DeleteImage(texturePath + ".meta");
+            AssetDatabase.Refresh();
+        }
+    }
+
+    public static async Task<bool> WaitForFileAsync(string filePath, int timeoutMilliseconds = 999999, int checkIntervalMilliseconds = 500)
+    {
+        DateTime startTime = DateTime.Now;
+
+        while (!File.Exists(filePath))
+        {
+            // if ((DateTime.Now - startTime).TotalMilliseconds > timeoutMilliseconds)
+            // {
+            //     UnityEngine.Debug.LogError("Timeout waiting for file.");
+            //     return false;
+            // }
+            await Task.Delay(checkIntervalMilliseconds); // Wait asynchronously
+        }
+
+        // Wait for the file size to stabilize
+        long lastSize = -1;
+        while ((DateTime.Now - startTime).TotalMilliseconds < timeoutMilliseconds)
+        {
+            long currentSize = new FileInfo(filePath).Length;
+            if (currentSize == lastSize) // File size hasn't changed
+            {
+                return true; // File is stable
+            }
+            lastSize = currentSize;
+            await Task.Delay(checkIntervalMilliseconds); // Wait asynchronously
+        }
+
+        UnityEngine.Debug.LogError("Timeout waiting for file size stabilization.");
+        return false;
+    }
+}
+
+
+/// <summary>
+/// ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// ////////////////////////////END OF UTILITY BLOCK////////////////////////////////////////////////////////////////////////////////
+/// ////////////////////////////END OF UTILITY BLOCK////////////////////////////////////////////////////////////////////////////////
+/// ////////////////////////////END OF UTILITY BLOCK////////////////////////////////////////////////////////////////////////////////
+/// ////////////////////////////END OF UTILITY BLOCK////////////////////////////////////////////////////////////////////////////////
+/// ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// </summary>
+
+
+
+[InitializeOnLoad]
+public class DragAndDropTextureToScene
+{
+    static DragAndDropTextureToScene()
+    {
+        // Hook into the scene GUI to listen for drag-and-drop events
+        SceneView.duringSceneGui += OnSceneGUI;
+
+    }   
+
+    // Handle scene drag-and-drop logic
+    private static void OnSceneGUI(SceneView sceneView)
+    {
+        Utility.HandleDragAndDropEvents();
+    }
+
+    
+
 }
 public class ReadOnlyAttribute : PropertyAttribute
 {
@@ -154,147 +505,127 @@ public class BillboardIcon : MonoBehaviour
     public void SetIcon(Texture2D texture)
     {
         iconTexture = texture;
-    }
+    }   
 
-    public bool IsFBXFileValid(string filePath)
-    {
-        // Check if file exists
-        if (!File.Exists(filePath))
-        {
-            UnityEngine.Debug.LogWarning($"FBX file not found: {filePath}");
-            return false;
-        }
-
-        // Check file size (FBX files should be at least several KB)
-        FileInfo fileInfo = new FileInfo(filePath);
-        if (fileInfo.Length < 1024) // Check if the file size is smaller than 1KB
-        {
-            UnityEngine.Debug.LogWarning($"FBX file is too small and may be corrupted: {filePath}");
-            return false;
-        }
-
-        // (Optional) Read the file's content to check for an FBX signature
-        using (var reader = new StreamReader(filePath))
-        {
-            string firstLine = reader.ReadLine();
-            if (firstLine == null || !firstLine.Contains("FBX"))
-            {
-                UnityEngine.Debug.LogWarning($"FBX file header is invalid: {filePath}");
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private string GetUniqueFileName(string baseName, string extension)
-    {
-        string sanitizedBaseName = baseName.Replace(" ", "");
-        return $"{sanitizedBaseName}{extension}";
-    }
-
-    private void DeleteAsset(string path)
-    {
-        Uri fullPathUri = new Uri(path);
-        Uri projectUri = new Uri(Application.dataPath); // Unity project "Assets" folder as base
-
-        // Get the relative path by making the full path relative to the "Assets" folder
-        string relativePath = projectUri.MakeRelativeUri(fullPathUri).ToString();
-        string assetPath = relativePath.Replace("\\", "/");
-
-        // Check if the asset exists before attempting to delete
-        if (AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath) != null)
-        {
-            AssetDatabase.DeleteAsset(assetPath);
-            AssetDatabase.Refresh(); // Refresh the asset database to reflect the changes
-        }
-        else
-        {
-            //\UnityEngine.Debug.LogWarning("Asset not found at path: " + assetPath);
-        }
-    }
+       
 
 
-    private static readonly object fileLock = new object();
+    // public async void ConvertTo3D()
+    // {
+    //     // gameObject.name = iconTexture.name + " (Generating)";
+    //     gameObject.name = iconTexture.name;
+    //     // gameObject.name = iconTexture.name;
+    //     IsProcessing = true;
+    //     HasErrorOccurred = false;
+    //     if (this.queue_position == 0)
+    //     {        
+    //         this.queue_position = FindMaxQueuePosition()+1;
+    //         EditorUtility.SetDirty(this);
 
-    private void MoveGeneratedFBX(string sourcePath, string destinationPath)
-    {
-        lock (fileLock)
-        {
-            if (File.Exists(destinationPath))
-            {
-                File.Delete(destinationPath);
-            }
-            File.Move(sourcePath, destinationPath);
-        }
-    }
+    //         StartTime = DateTime.Now;
+    //         string nowString = DateTime.Now.ToString("HH-mm-ss");
+    //         string uniqueFileName = gameObject.name+ "-" +nowString +".fbx";
 
-    static void CopyImage(string originalPath, string copyPath)
-    {
-        using (Image originalImage = Image.FromFile(originalPath))
-        {
-            // Creaye a copy in memory of the image
-            using (Bitmap copy = new Bitmap(originalImage))
-            {
-                // Saves the copy on the specified path
-                copy.Save(copyPath, originalImage.RawFormat);
-            }
-        }
-    }
+    //         await WaitUntilQueuePositionIsOne(gameObject);
 
-    static void DeleteImage(string path)
-    {
-        try
-        {
-            // Verifies that the file exists before deleting
-            if (File.Exists(path))
-            {
-                File.Delete(path);
-                Console.WriteLine("The image has been deleted correctly.");
-            }
-            else
-            {
-                Console.WriteLine("The file does not exist on the specified path.");
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error while deleting the image: {ex.Message}");
-        }
-    }
+    //         if (queue_position == 1)
+    //         {
+    //                 // string pythonScriptPath = Path.Combine(Application.dataPath, "AtlasGeneratorBeta/Editor/client_3D.py");
+    //                 string programPath = Path.Combine(Application.dataPath, "AtlasGeneratorBeta/Editor/client3D/client3D.exe");
+    //                 string projectRootPath = Application.dataPath.Replace("/Assets", "");
 
-    static void OverwriteFirstPixelWithRandomColor(string path)
-    {
-        byte[] imageData = File.ReadAllBytes(path);
-        Texture2D texture = new Texture2D(2, 2);
-        texture.LoadImage(imageData);
+    //                 // Use unique file names for each process
+    //                 // string sourcePath = Path.Combine(projectRootPath, uniqueFileName); // Unique result file
+    //                 string destinationPath = Path.Combine(Application.dataPath + "/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".fbx",""), uniqueFileName);
 
-        Color randomColor = new Color(UnityEngine.Random.value, UnityEngine.Random.value, UnityEngine.Random.value, 1f); // RGB aleatorio, alfa en 1
+    //                 // string original_img_path = Application.dataPath + "/AtlasGeneratorBeta/images/original-images/"+iconTexture.name+".png";
+    //                 string original_img_path = Application.dataPath + "/AtlasGeneratorBeta/images/original-images/"+iconTexture.name;
+    //                 original_img_path = original_img_path+FindImagePathWithExtension(original_img_path);
+                                                    
+    //                 string img_path = Application.dataPath + "/AtlasGeneratorBeta/images/temp-images/"+iconTexture.name + "-" +nowString + FindImagePathWithExtension(original_img_path);
+    //                 CopyImage(original_img_path, img_path);
+    //                 OverwriteFirstPixelWithRandomColor(img_path);
 
-        texture.SetPixel(0, 0, randomColor);
-        texture.Apply();
+    //                 string outputPath = destinationPath.Replace("/","\\");
+    //                 img_path = img_path.Replace("/","\\");
 
-        byte[] modifiedData = texture.EncodeToPNG();
-        File.WriteAllBytes(path, modifiedData);
-    }
+    //                 if (!Directory.Exists(Application.dataPath + "/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".fbx","")))
+    //                 {
+    //                     Directory.CreateDirectory(Application.dataPath + "/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".fbx",""));
+    //                 }
 
-    public static string FindImagePathWithExtension(string img_path)
-    {
-        // Common image formats
-        string[] extensions = { ".png", ".jpg", ".jpeg", ".bmp", ".tga", ".tiff" };
+    //                 // UnityEngine.Debug.Log(outputPath);
+    //                 // UnityEngine.Debug.Log(img_path);
+    //                 await ExecuteClient3DAsync(programPath, img_path, outputPath);
+                                    
+    //                 // Wait for the file without blocking Unity
 
-        // Try every extension
-        foreach (string ext in extensions)
-        {
-            string fullPath = img_path + ext;
-            if (File.Exists(fullPath))
-            {
-                return ext;
-            }
-        }
+    //                 while(!(await WaitForFileAsync(destinationPath)))
+    //                 {
+    //                     AssetDatabase.Refresh();
+    //                     Thread.Sleep(1000);
+    //                     // throw new Exception("File did not appear in time.");
+    //                 }
+                                       
+    //                 // Validate the FBX file before moving or importing it
+    //                 while (!IsFBXFileValid(destinationPath))
+    //                 {
+    //                     Thread.Sleep(1000);
+    //                 }                
 
-        return ".png";
-    }
+    //                 string importerPath = "Assets/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".fbx","/")+ uniqueFileName;
+    //                 // string importerPath = destinationPath;
+                        
+    //                 // Get the importer for the FBX file
+    //                 ModelImporter modelImporter = AssetImporter.GetAtPath(importerPath) as ModelImporter;
+    //                 if (modelImporter == null)
+    //                 {
+    //                     UnityEngine.Debug.LogError("I was not possible to get the ModelImporter del FBX: " + importerPath);
+    //                     return;
+    //                 }
+    //                 // Get the directory containing the FBX file
+    //                 string fbxDirectory = Path.GetDirectoryName(importerPath);
+
+    //                 // If the directory does not exist then creates one
+    //                 if (!Directory.Exists(fbxDirectory))
+    //                 {
+    //                     Directory.CreateDirectory(fbxDirectory);
+    //                 }
+    //                 // Extraxt the texture and save it on the same  directory of the FBX file
+    //                 modelImporter.ExtractTextures(fbxDirectory);
+
+    //                 // Apply ModelImporter
+    //                 AssetDatabase.ImportAsset(importerPath);
+    //                 // UnityEngine.Debug.Log($"Texturas extraídas a: {fbxDirectory}");    
+                    
+    //                 gameObject.name = iconTexture.name;
+    //                 // RemoveAllComponents(gameObject);
+
+    //                 // GameObject fbxObject = AssetDatabase.LoadAssetAtPath<GameObject>(Path.Combine("Assets/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".fbx",""), uniqueFileName));
+    //                 GameObject fbxObject = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".fbx","/")+ uniqueFileName);
+    //                 UnityEngine.Debug.Log("Assets/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".fbx","/")+ uniqueFileName);
+    //                 // Verificar si se cargó correctamente
+    //                 if (fbxObject != null)
+    //                 {
+    //                     GameObject newInstance = Instantiate(fbxObject);
+    //                     newInstance.name = fbxObject.name;
+    //                     newInstance.transform.position = gameObject.transform.position;
+    //                     newInstance.transform.localScale = new Vector3(15f,15f,15f);
+    //                     newInstance.transform.localScale *= billboardSize;
+    //                     DecreaseQueuePosition();
+    //                     DestroyImmediate(gameObject);                    
+    //                     AssetDatabase.Refresh();                    
+    //                     return;
+    //                 }
+                    
+    //                 AssetDatabase.Refresh();
+
+    //         }
+    //     }    
+    //     IsProcessing = false;
+    //     // Notify the request queue that the request has been completed
+    // }
+    
 
 
     public async void ConvertTo3D()
@@ -306,14 +637,14 @@ public class BillboardIcon : MonoBehaviour
         HasErrorOccurred = false;
         if (this.queue_position == 0)
         {        
-            this.queue_position = FindMaxQueuePosition()+1;
+            this.queue_position = Utility.FindMaxQueuePosition()+1;
             EditorUtility.SetDirty(this);
 
             StartTime = DateTime.Now;
             string nowString = DateTime.Now.ToString("HH-mm-ss");
-            string uniqueFileName = gameObject.name+ "-" +nowString +".fbx";
+            string uniqueFileName = gameObject.name+ "-" +nowString +".obj";
 
-            await WaitUntilQueuePositionIsOne(gameObject);
+            await Utility.WaitUntilQueuePositionIsOne(gameObject);
 
             if (queue_position == 1)
             {
@@ -321,86 +652,66 @@ public class BillboardIcon : MonoBehaviour
                     string programPath = Path.Combine(Application.dataPath, "AtlasGeneratorBeta/Editor/client3D/client3D.exe");
                     string projectRootPath = Application.dataPath.Replace("/Assets", "");
 
-                    // Use unique file names for each process
-                    // string sourcePath = Path.Combine(projectRootPath, uniqueFileName); // Unique result file
-                    string destinationPath = Path.Combine(Application.dataPath + "/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".fbx",""), uniqueFileName);
-
-                    // string original_img_path = Application.dataPath + "/AtlasGeneratorBeta/images/original-images/"+iconTexture.name+".png";
+                    string destinationPath = Path.Combine(Application.dataPath + "/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".obj",""), uniqueFileName);
                     string original_img_path = Application.dataPath + "/AtlasGeneratorBeta/images/original-images/"+iconTexture.name;
-                    original_img_path = original_img_path+FindImagePathWithExtension(original_img_path);
+                    original_img_path = original_img_path+Utility.FindImagePathWithExtension(original_img_path);
                                                     
-                    string img_path = Application.dataPath + "/AtlasGeneratorBeta/images/temp-images/"+iconTexture.name + "-" +nowString + FindImagePathWithExtension(original_img_path);
-                    CopyImage(original_img_path, img_path);
-                    OverwriteFirstPixelWithRandomColor(img_path);
+                    string img_path = Application.dataPath + "/AtlasGeneratorBeta/images/temp-images/"+iconTexture.name + "-" +nowString + Utility.FindImagePathWithExtension(original_img_path);
+                    Utility.CopyImage(original_img_path, img_path);
+                    Utility.OverwriteFirstPixelWithRandomColor(img_path);
 
                     string outputPath = destinationPath.Replace("/","\\");
+                    img_path = img_path.Replace("/","\\");
 
-                    if (!Directory.Exists(Application.dataPath + "/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".fbx","")))
+                    if (!Directory.Exists(Application.dataPath + "/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".obj","")))
                     {
-                        Directory.CreateDirectory(Application.dataPath + "/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".fbx",""));
+                        Directory.CreateDirectory(Application.dataPath + "/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".obj",""));
                     }
 
-                    await ExecuteClient3DAsync(programPath, img_path, outputPath);
-                                    
+                    await Utility.ExecuteClient3DAsync(programPath, img_path, "generate-obj", outputPath);                                    
                     // Wait for the file without blocking Unity
-                    // bool isFileReady = await WaitForFileAsync(destinationPath);
-                    while(!(await WaitForFileAsync(destinationPath)))
+                    while(!(await Utility.WaitForFileAsync(destinationPath)))
                     {
                         AssetDatabase.Refresh();
                         Thread.Sleep(1000);
-                        // throw new Exception("File did not appear in time.");
                     }
                                        
-                    // Validate the FBX file before moving or importing it
-                    while (!IsFBXFileValid(destinationPath))
+                    // Validate the obj file before moving or importing it
+                    while (!Utility.IsOBJFileValid(destinationPath))
                     {
                         Thread.Sleep(1000);
                     }                
 
-                    string importerPath = "Assets/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".fbx","/")+ uniqueFileName;
-                    // string importerPath = destinationPath;
+                    string importerPath = "Assets/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".obj","/")+ uniqueFileName;
                         
-                    // Get the importer for the FBX file
-                    ModelImporter modelImporter = AssetImporter.GetAtPath(importerPath) as ModelImporter;
-                    if (modelImporter == null)
-                    {
-                        UnityEngine.Debug.LogError("I was not possible to get the ModelImporter del FBX: " + importerPath);
-                        return;
-                    }
-                    // Get the directory containing the FBX file
-                    string fbxDirectory = Path.GetDirectoryName(importerPath);
-
-                    // If the directory does not exist then creates one
-                    if (!Directory.Exists(fbxDirectory))
-                    {
-                        Directory.CreateDirectory(fbxDirectory);
-                    }
-                    // Extraxt the texture and save it on the same  directory of the FBX file
-                    modelImporter.ExtractTextures(fbxDirectory);
-
-                    // Apply ModelImporter
-                    AssetDatabase.ImportAsset(importerPath);
-                    // UnityEngine.Debug.Log($"Texturas extraídas a: {fbxDirectory}");    
+                    string objDirectory = Path.GetDirectoryName(importerPath);
                     
                     gameObject.name = iconTexture.name;
+                    AssetDatabase.Refresh();
                     // RemoveAllComponents(gameObject);
 
-                    // GameObject fbxObject = AssetDatabase.LoadAssetAtPath<GameObject>(Path.Combine("Assets/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".fbx",""), uniqueFileName));
-                    GameObject fbxObject = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".fbx","/")+ uniqueFileName);
-                    UnityEngine.Debug.Log("Assets/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".fbx","/")+ uniqueFileName);
+                    GameObject objObject = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".obj","/")+ uniqueFileName);
+                    UnityEngine.Debug.Log("Assets/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".obj","/")+ uniqueFileName);
+                    
                     // Verificar si se cargó correctamente
-                    if (fbxObject != null)
+                    if (objObject != null)
                     {
-                        GameObject newInstance = Instantiate(fbxObject);
-                        newInstance.name = fbxObject.name;
+                        GameObject newInstance = Instantiate(objObject);
+                        newInstance.name = uniqueFileName.Replace(".obj","");
                         newInstance.transform.position = gameObject.transform.position;
-                        newInstance.transform.localScale = new Vector3(15f,15f,15f);
-                        newInstance.transform.localScale *= billboardSize;
-                        DecreaseQueuePosition();
-                        DestroyImmediate(gameObject);                    
+                        // newInstance.transform.localScale = new Vector3(15f,15f,15f);
+                        newInstance.transform.localScale *= billboardSize / 6.666f;
+
+                        var propertyComponent = newInstance.AddComponent<PropertyComponent>();
+                        propertyComponent.texture = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/AtlasGeneratorBeta/images/original-images/"+iconTexture.name + Utility.FindImagePathWithExtension(original_img_path)); // Asignar textura
+                        propertyComponent.readyToTex = true;  // Establecer como listo
+                        propertyComponent.creationTime = nowString;
+                        Utility.DecreaseQueuePosition();
+                        DestroyImmediate(gameObject);          
                         AssetDatabase.Refresh();                    
                         return;
                     }
+                    
                     
                     AssetDatabase.Refresh();
 
@@ -408,169 +719,8 @@ public class BillboardIcon : MonoBehaviour
         }    
         IsProcessing = false;
         // Notify the request queue that the request has been completed
-    }
-
-
-    
-    public int FindMaxQueuePosition()
-    {
-        int maxQueuePosition = 0;
-
-        foreach (GameObject obj in FindObjectsOfType<GameObject>())
-        {
-             foreach (var component in obj.GetComponents<Component>())
-            {
-                // Luego, intentamos obtener `queue_position` como campo
-                var queuePositionField = component.GetType().GetField("queue_position");
-                if (queuePositionField != null && queuePositionField.FieldType == typeof(int))
-                {
-                    int queuePositionValue = (int)queuePositionField.GetValue(component);
-                    maxQueuePosition = Mathf.Max(maxQueuePosition, queuePositionValue);
-                }
-            }
-        }
-
-        return maxQueuePosition;
-    }
-
-    public void DecreaseQueuePosition()
-    {
-        foreach (GameObject obj in FindObjectsOfType<GameObject>())
-        {
-            foreach (var component in obj.GetComponents<Component>())
-            {
-                // Try to get `queue_position` as a field
-                var queuePositionField = component.GetType().GetField("queue_position", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-                if (queuePositionField != null && queuePositionField.FieldType == typeof(int))
-                {
-                    int queuePositionValue = (int)queuePositionField.GetValue(component);
-                    if (queuePositionValue > 0)
-                    {
-                        // Decrease the value of `queue_position` by 1
-                        queuePositionField.SetValue(component, queuePositionValue - 1);
-                    }
-                }
-            }
-        }
-    }
-
-    public async Task WaitUntilQueuePositionIsOne(GameObject obj)
-    {
-        // Get the queue_position field
-        // FieldInfo queuePositionField = obj.GetType().GetField("queue_position", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-        // if (queuePositionField != null && queuePositionField.FieldType == typeof(int))
-        // {
-        //     // Wait until the queue_position is equal to 1
-        //     while ((int)queuePositionField.GetValue(obj) != 1)
-        //     {
-        //         await Task.Yield();
-        //     }
-        // }
-
-
-        // var component = obj.GetComponents<Component>()[0];
-        // var queuePositionField = component.GetType().GetField("queue_position", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-        // if (queuePositionField != null && queuePositionField.FieldType == typeof(int))
-        // {
-        //     while ((int)queuePositionField.GetValue(obj) != 1)
-        //     {
-        //         await Task.Yield();
-        //     }
-        // }
-
-        foreach (var component in obj.GetComponents<Component>())
-            {
-                // Try to get `queue_position` as a field
-                var queuePositionField = component.GetType().GetField("queue_position", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-                if (queuePositionField != null && queuePositionField.FieldType == typeof(int))
-                {
-                    while ((int)queuePositionField.GetValue(component) > 1)
-                    {
-                        // Decrease the value of `queue_position` by 1
-                        await Task.Yield();
-                    }
-                }
-            }
-    }
-        
-    
-
-    
-
-    public async Task ExecuteClient3DAsync(string programPath, string texturePath, string sourcePath)
-    {
-        // Crea el proceso
-        ProcessStartInfo startInfo = new ProcessStartInfo
-        {
-            FileName = programPath, // Ruta del programa (client3D.exe)
-            Arguments = $"\"{texturePath}\" \"{sourcePath}\"", // Argumentos para el programa
-            RedirectStandardOutput = true, // Redirige la salida estándar si es necesario
-            RedirectStandardError = true,  // Redirige los errores
-            UseShellExecute = false,       // Necesario para redirigir la salida
-            CreateNoWindow = true          // Evita que se muestre una ventana de consola
-        };
-
-        using (Process process = new Process { StartInfo = startInfo })
-        {
-            process.Start(); // Inicia el proceso
-
-            // Leer la salida y errores de manera asíncrona
-            Task<string> outputTask = process.StandardOutput.ReadToEndAsync();
-            Task<string> errorTask = process.StandardError.ReadToEndAsync();
-
-            // Espera de manera asincrónica sin bloquear el hilo principal de Unity
-            await Task.Run(() => process.WaitForExit());
-
-            string output = await outputTask;
-            string error = await errorTask;
-
-            if (!string.IsNullOrEmpty(error))
-            {
-                UnityEngine.Debug.LogError($"Error executing client3D.exe: {error}");
-            }
-            else
-            {
-                UnityEngine.Debug.Log($"client3D.exe exected succesfully. Output: {output}");
-            }
-
-            DeleteImage(texturePath);
-            DeleteImage(texturePath+".meta");
-            AssetDatabase.Refresh();
-        }
-    }
-    
-    // Asynchronous file wait mechanism
-    public async Task<bool> WaitForFileAsync(string filePath, int timeoutMilliseconds = 999999, int checkIntervalMilliseconds = 500)
-    {
-        DateTime startTime = DateTime.Now;
-
-        while (!File.Exists(filePath))
-        {
-            // if ((DateTime.Now - startTime).TotalMilliseconds > timeoutMilliseconds)
-            // {
-            //     UnityEngine.Debug.LogError("Timeout waiting for file.");
-            //     return false;
-            // }
-            await Task.Delay(checkIntervalMilliseconds); // Wait asynchronously
-        }
-
-        // Wait for the file size to stabilize
-        long lastSize = -1;
-        while ((DateTime.Now - startTime).TotalMilliseconds < timeoutMilliseconds)
-        {
-            long currentSize = new FileInfo(filePath).Length;
-            if (currentSize == lastSize) // File size hasn't changed
-            {
-                return true; // File is stable
-            }
-            lastSize = currentSize;
-            await Task.Delay(checkIntervalMilliseconds); // Wait asynchronously
-        }
-
-        UnityEngine.Debug.LogError("Timeout waiting for file size stabilization.");
-        return false;
-    }
-
+    }   
+  
     int GetYDistanceInTexture(Texture2D tex)
     {
         int width = tex.width;
@@ -738,6 +888,197 @@ public class BillboardIconEditor : Editor
     }
 }
 
+public class PropertyComponent : MonoBehaviour
+{
+    [ReadOnly] 
+    public Texture2D texture;    // Propiedad para almacenar una textura
+    [ReadOnly] 
+    public string creationTime;    // Propiedad para almacenar una textura
+    [SerializeField]
+    [ReadOnly]
+    public int queue_position = 0;
+
+    [HideInInspector] 
+    public bool readyToTex;      // Propiedad para indicar si está listo
+
+    public bool IsProcessing { get; private set; }
+    public DateTime? StartTime { get; private set; }
+
+    
+
+
+    public async void ProjectTextures()
+    {
+        IsProcessing = true;
+        // HasErrorOccurred = false;
+        var propertyComponent = gameObject.GetComponents<Component>()[0];
+
+        string uniqueFileName = gameObject.name + ".fbx";
+        string creationTime = gameObject.GetComponents<PropertyComponent>()[0].creationTime;
+        Texture2D projection_image = gameObject.GetComponents<PropertyComponent>()[0].texture;
+        // UnityEngine.Debug.Log(projection_image);
+        // UnityEngine.Debug.Log(creationTime);
+        // UnityEngine.Debug.Log(uniqueFileName);
+
+        if (this.queue_position == 0)
+        {        
+            this.queue_position = Utility.FindMaxQueuePosition()+1;
+            EditorUtility.SetDirty(this);
+
+            // StartTime = DateTime.Now;
+            // string nowString = DateTime.Now.ToString("HH-mm-ss");            
+            
+            await Utility.WaitUntilQueuePositionIsOne(gameObject);            
+
+            if (queue_position == 1)
+            {
+                    // string pythonScriptPath = Path.Combine(Application.dataPath, "AtlasGeneratorBeta/Editor/client_3D.py");
+                    string programPath = Path.Combine(Application.dataPath, "AtlasGeneratorBeta/Editor/client3D/client3D.exe");
+                    string projectRootPath = Application.dataPath.Replace("/Assets", "");
+
+                    // Use unique file names for each process
+                    // string sourcePath = Path.Combine(projectRootPath, uniqueFileName); // Unique result file
+                    string destinationPath = Path.Combine(Application.dataPath + "/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".fbx",""), uniqueFileName);
+
+                    // string original_img_path = Application.dataPath + "/AtlasGeneratorBeta/images/original-images/"+iconTexture.name+".png";
+                    string original_img_path = Application.dataPath + "/AtlasGeneratorBeta/images/original-images/"+projection_image.name;
+                    original_img_path = original_img_path+Utility.FindImagePathWithExtension(original_img_path);
+                                                    
+                    string img_path = Application.dataPath + "/AtlasGeneratorBeta/images/temp-images/"+projection_image.name + "-" + creationTime + Utility.FindImagePathWithExtension(original_img_path);
+                    Utility.CopyImage(original_img_path, img_path);
+                    Utility.OverwriteFirstPixelWithRandomColor(img_path);
+
+                    string outputPath = destinationPath.Replace("/","\\");
+                    img_path = img_path.Replace("/","\\");
+
+                    if (!Directory.Exists(Application.dataPath + "/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".fbx","")))
+                    {
+                        Directory.CreateDirectory(Application.dataPath + "/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".fbx",""));
+                    }
+
+                    UnityEngine.Debug.Log(outputPath);
+                    UnityEngine.Debug.Log(img_path);
+                    await Utility.ExecuteClient3DAsync(programPath, img_path, "generate-fbx", outputPath);
+                                    
+                    // Wait for the file without blocking Unity
+
+                    while(!(await Utility.WaitForFileAsync(destinationPath)))
+                    {
+                        AssetDatabase.Refresh();
+                        Thread.Sleep(1000);
+                        // throw new Exception("File did not appear in time.");
+                    }
+                                       
+                    // Validate the FBX file before moving or importing it
+                    while (!Utility.IsFBXFileValid(destinationPath))
+                    {
+                        Thread.Sleep(1000);
+                    }                
+
+                    string importerPath = "Assets/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".fbx","/")+ uniqueFileName;
+                    // string importerPath = destinationPath;
+                        
+                    // Get the importer for the FBX file
+                    ModelImporter modelImporter = AssetImporter.GetAtPath(importerPath) as ModelImporter;
+                    if (modelImporter == null)
+                    {
+                        UnityEngine.Debug.LogError("I was not possible to get the ModelImporter del FBX: " + importerPath);
+                        return;
+                    }
+                    // Get the directory containing the FBX file
+                    string fbxDirectory = Path.GetDirectoryName(importerPath);
+
+                    // If the directory does not exist then creates one
+                    if (!Directory.Exists(fbxDirectory))
+                    {
+                        Directory.CreateDirectory(fbxDirectory);
+                    }
+                    // Extraxt the texture and save it on the same  directory of the FBX file
+                    modelImporter.ExtractTextures(fbxDirectory);
+
+                    // Apply ModelImporter
+                    AssetDatabase.ImportAsset(importerPath);
+                    // UnityEngine.Debug.Log($"Texturas extraídas a: {fbxDirectory}");    
+                    
+                    gameObject.name = projection_image.name;
+                    // RemoveAllComponents(gameObject);
+
+                    // GameObject fbxObject = AssetDatabase.LoadAssetAtPath<GameObject>(Path.Combine("Assets/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".fbx",""), uniqueFileName));
+                    GameObject fbxObject = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".fbx","/")+ uniqueFileName);
+                    UnityEngine.Debug.Log("Assets/AtlasGeneratorBeta/GeneratedModels/"+uniqueFileName.Replace(".fbx","/")+ uniqueFileName);
+                    // Verificar si se cargó correctamente
+                    if (fbxObject != null)
+                    {
+                        GameObject newInstance = Instantiate(fbxObject);
+                        newInstance.name = fbxObject.name;
+                        newInstance.transform.position = gameObject.transform.position;
+                        // newInstance.transform.localScale = new Vector3(15f,15f,15f);
+                        // newInstance.transform.localScale *= billboardSize;
+                        Utility.DecreaseQueuePosition();
+                        DestroyImmediate(gameObject);                    
+                        AssetDatabase.Refresh();                    
+                        return;
+                    }
+                    
+                    AssetDatabase.Refresh();
+
+            }
+        }    
+        IsProcessing = false;
+        // Notify the request queue that the request has been completed
+    }
+}
+
+[CustomEditor(typeof(PropertyComponent))]
+[CanEditMultipleObjects]
+public class PropertyComponentEditor : Editor
+{
+    public override void OnInspectorGUI()
+    {
+    // Dibujar los elementos predeterminados del Inspector
+        DrawDefaultInspector();
+
+        // Obtener el componente seleccionado
+        PropertyComponent propertyComponent = (PropertyComponent)target;
+        // PropertyComponent propertyComponent = gameObj;
+        // Verificar si readyToTex es true
+        if (propertyComponent.readyToTex)
+        {
+            if (propertyComponent.IsProcessing)
+            {
+                // Disable the button and show "Processing" label
+                EditorGUI.BeginDisabledGroup(true);
+                GUILayout.Button("Project Texture");
+                EditorGUI.EndDisabledGroup();
+                // Display "Processing..." message
+                EditorGUILayout.HelpBox("Processing... Please wait.", MessageType.Info);
+
+                // Calculate and display the elapsed time
+                if (propertyComponent.StartTime.HasValue)
+                {
+                    TimeSpan elapsedTime = DateTime.Now - propertyComponent.StartTime.Value;
+                    EditorGUILayout.LabelField("Elapsed Time:", $"{elapsedTime.Minutes:D2}:{elapsedTime.Seconds:D2}");
+                }
+                Repaint();
+            }
+            // Mostrar el botón "Project Texture"
+            else 
+            {
+            // Acción cuando se presiona el botón
+                if(GUILayout.Button("Project Texture"))
+                {
+                    UnityEngine.Debug.Log($"{propertyComponent.name} - Project Texture button clicked.");
+                    propertyComponent.ProjectTextures();
+                }                    
+            }
+        }
+    }
+}
+
+
+    
+
+
 public class QueuePositionWindow : EditorWindow
 {
     [MenuItem("Atlas Generator/Processes Queue")]
@@ -793,3 +1134,55 @@ public class QueuePositionWindow : EditorWindow
     }
 }
 
+public class PipelineSelectorWindow : EditorWindow
+{
+    private static readonly string jsonPath = "Assets/AtlasGeneratorBeta/pipelines/";
+    private string[] jsonFiles;
+    private int selectedIndex = 0;
+    private const string selectedFileKey = "ActivePipelineFile";
+
+    [MenuItem("Atlas Generator/Pipeline Selector")]
+    public static void ShowWindow()
+    {
+        GetWindow<PipelineSelectorWindow>("Pipeline Selector");
+    }
+
+    private void OnEnable()
+    {
+        // Cargar los archivos .json en la carpeta
+        jsonFiles = Directory.GetFiles(jsonPath, "*.json")
+                             .Select(Path.GetFileNameWithoutExtension)
+                             .ToArray();
+
+        // Cargar el índice seleccionado previamente
+        selectedIndex = EditorPrefs.GetInt(selectedFileKey, 0);
+    }
+
+    private void OnGUI()
+    {
+        if (jsonFiles.Length == 0)
+        {
+            EditorGUILayout.LabelField("No JSON files found in the specified path.");
+            return;
+        }
+
+        EditorGUILayout.LabelField("Select a pipeline JSON file:");
+
+        // Dropdown para seleccionar el archivo JSON
+        selectedIndex = EditorGUILayout.Popup(selectedIndex, jsonFiles);
+
+        // Botón para guardar la selección actual como activa
+        if (GUILayout.Button("Set Active Pipeline"))
+        {
+            EditorPrefs.SetInt(selectedFileKey, selectedIndex);
+            UnityEngine.Debug.Log($"Active pipeline set to: {jsonFiles[selectedIndex]}");
+        }
+    }
+
+    public static string GetActivePipelineFilePath()
+    {
+        int index = EditorPrefs.GetInt(selectedFileKey, 0);
+        string fileName = Path.GetFileNameWithoutExtension(Directory.GetFiles(jsonPath, "*.json")[index]);
+        return Path.Combine(jsonPath, $"{fileName}.json");
+    }
+}
